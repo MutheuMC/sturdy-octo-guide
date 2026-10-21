@@ -1636,3 +1636,133 @@ nav button.active {
     display: none;
   }
 }
+
+.view-document {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #eef2ff;
+  color: #262262;
+  border: 1px solid #dde3f5;
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 12px;
+}
+.view-document:hover {
+  background: #dbeafe;
+}
+.document-viewer {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  padding: 0;
+  width: min(1200px, 96vw);
+  height: 92dvh;
+  max-width: 96vw;
+  max-height: 96dvh;
+  border: 1px solid #e5e7f0;
+  border-radius: 12px;
+  background: white;
+  color: #201c52;
+  overflow: hidden;
+  box-shadow: 0 24px 80px #201c5233;
+}
+.document-viewer[open] {
+  display: flex;
+  flex-direction: column;
+}
+.document-viewer::backdrop {
+  background: #201c5266;
+  backdrop-filter: blur(4px);
+}
+.viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  gap: 15px;
+  border-bottom: 1px solid #e5e7f0;
+}
+.viewer-toolbar > div:first-child {
+  min-width: 0;
+}
+.viewer-toolbar h2 {
+  font-size: 17px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.viewer-toolbar p {
+  font-size: 11px;
+  color: #797c9c;
+  margin-top: 6px;
+}
+.viewer-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.viewer-body {
+  flex: 1;
+  min-height: 0;
+  background: #eff1f7;
+  display: flex;
+}
+.viewer-body iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #eff1f7;
+}
+.viewer-message {
+  margin: auto;
+  text-align: center;
+  padding: 25px;
+  max-width: 530px;
+}
+.viewer-message h3 {
+  font-size: 18px;
+  margin: 15px 0 10px;
+}
+.viewer-message p {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #797c9c;
+  margin-bottom: 20px;
+}
+.viewer-footer {
+  padding: 12px 20px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #797c9c;
+  border-top: 1px solid #e5e7f0;
+}
+.document-viewer:fullscreen {
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+}
+@media (max-width: 760px) {
+  .view-document {
+    padding: 8px;
+  }
+  .view-document span {
+    display: none;
+  }
+  .viewer-toolbar {
+    padding: 12px;
+    gap: 7px;
+  }
+  .viewer-toolbar h2 {
+    font-size: 14px;
+  }
+  .viewer-toolbar p {
+    font-size: 10px;
+  }
+  .viewer-actions {
+    gap: 2px;
+  }
+}

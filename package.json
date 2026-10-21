@@ -11,7 +11,8 @@
     "test": "tsx --test tests/*.test.ts",
     "db:migrate": "prisma migrate deploy",
     "test:integration": "node --env-file=.env tests/integration.mjs",
-    "format": "prettier --write app server tests prisma/seed.ts"
+    "format": "prettier --write app server tests prisma/seed.ts",
+    "test:previews": "node --env-file=.env tests/preview-integration.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",

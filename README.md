@@ -39,8 +39,20 @@ Before a public launch:
 - Run the included integration tests against a dedicated test instance before deployment; expand coverage to scanner failure, quota concurrency, and large-file handling.
 - Perform a full accessibility review; dialogs include keyboard focus trapping, Escape handling, and focus return.
 
-The current UI supports signup/login/logout, project creation, project search, document upload/link creation, download, document deletion with confirmation, admin user search and pagination, and admin project/document browsing. Project renaming/deletion, previews, sharing, and automatic document optimization are not included.
+The current UI supports signup/login/logout, project creation, project search, document upload/link creation, download, document deletion with confirmation, admin user search and pagination, and admin project/document browsing. Project renaming/deletion, sharing, and automatic document optimization are not included.
 
 ## UI motion
 
 Project and user cards use the source-owned [React Bits SpotlightCard](https://github.com/DavidHDev/react-bits), customized to the pptinit palette. Its license is retained in `components/react-bits/LICENSE.md`. Login background movement, card entrances, button sheen, and illustration motion use CSS. Reduced-motion preferences disable decorative animation; cards remain keyboard-accessible buttons.
+
+## Browser document previews
+
+Click **View** beside an uploaded file. PDFs open directly; PPTX and DOCX files are converted to static PDFs on demand. The viewer supports the browser PDF toolbar (page navigation and zoom), fullscreen, a separate preview tab, and downloading the original. Browser PDF support varies on mobile; use the separate tab or download fallback when needed. External links continue to open at their original location. Animations, transitions, embedded media, and exact font fidelity are not preserved by conversion.
+
+Run `npm run db:migrate` after updating the app. Install LibreOffice Impress and Writer, then set `LIBREOFFICE_PATH` to its absolute executable path. Restart the API after environment changes. Without this setting, PDF viewing still works and Office previews display a configuration message. Conversion uses the [LibreOffice headless PDF export](https://help.libreoffice.org/latest/en-US/text/shared/guide/pdf_params.html).
+
+For production Office previews, install Linux bubblewrap and set `PREVIEW_SANDBOX_PATH` to the absolute path of `server/preview-sandbox.sh`. It isolates the converter from the network and application filesystem, mounts only system runtime resources and the current temporary job, drops capabilities, and applies CPU/file limits. The host must permit unprivileged user namespaces. A non-system LibreOffice runtime can be mounted read-only with `LIBREOFFICE_RUNTIME_DIR`. Production refuses to enable Office conversion without the wrapper. Keep LibreOffice and ClamAV current; install fonts needed by your documents in the converter runtime.
+
+The single-process worker persists QUEUED/PROCESSING/READY/FAILED states in PostgreSQL, processes one job at a time, and recovers interrupted work on restart. Use only one API/worker instance with this implementation; move jobs to a dedicated queue before scaling horizontally. Each conversion has a fresh profile with macro execution disabled, a 90-second timeout, a 50 MB output limit, and temporary directory cleanup. Preview files count toward the user's 1 GB quota and are removed when the original is deleted. Previews use the same owner/admin permissions as downloads; admin views are audited. Generated preview PDFs remain private and are fetched into a temporary browser blob URL that is revoked when the viewer closes.
+
+With the app running and the converter configured, `npm run test:previews` exercises real two-slide PPTX, DOCX, and PDF fixtures, unauthorized access, admin viewing, private response headers, conversion failure/retry, and deletion cleanup. It creates and removes its own test accounts.

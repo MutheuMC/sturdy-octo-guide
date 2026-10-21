@@ -14,6 +14,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 import { title, linkSchema, validateOffice } from "./security";
+import { startPreviewWorker } from "./previews";
 const prisma = new PrismaClient();
 const secret = process.env.JWT_SECRET;
 if (!secret || secret.length < 32)
@@ -24,6 +25,14 @@ const uploadDir = path.resolve(process.env.UPLOAD_DIR || "./uploads");
 const production = process.env.NODE_ENV === "production";
 if (production && !process.env.CLAMSCAN_PATH)
   throw new Error("Production uploads require CLAMSCAN_PATH");
+if (
+  production &&
+  process.env.LIBREOFFICE_PATH &&
+  !process.env.PREVIEW_SANDBOX_PATH
+)
+  throw new Error(
+    "Production Office previews require PREVIEW_SANDBOX_PATH for isolated conversion",
+  );
 const runFile = promisify(execFile);
 const cookies = {
   httpOnly: true,
@@ -200,11 +209,11 @@ app.get("/api/projects", async (req, res) => {
   });
   const usage = await prisma.document.aggregate({
     where: { project: { ownerId } },
-    _sum: { size: true },
+    _sum: { size: true, previewSize: true },
   });
   res.json({
     projects,
-    usedBytes: usage._sum.size || 0,
+    usedBytes: (usage._sum.size || 0) + (usage._sum.previewSize || 0),
     quotaBytes: 1024 ** 3,
   });
 });
@@ -281,7 +290,7 @@ app.post(
       )
         return res.status(400).json({ error: "Invalid PDF file" });
     } else await validateOffice(file.buffer, kind);
-    // Private storage; no inline preview or execution of user documents.
+    // Private storage; original files are only served through authenticated routes.
     const storageKey = randomUUID() + ext;
     await mkdir(uploadDir, { recursive: true });
     await writeFile(path.join(uploadDir, storageKey), file.buffer, {
@@ -310,9 +319,12 @@ app.post(
         await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${req.user!.id} FOR UPDATE`;
         const usage = await tx.document.aggregate({
           where: { project: { ownerId: req.user!.id } },
-          _sum: { size: true },
+          _sum: { size: true, previewSize: true },
         });
-        if ((usage._sum.size || 0) + file.size > 1024 ** 3)
+        if (
+          (usage._sum.size || 0) + (usage._sum.previewSize || 0) + file.size >
+          1024 ** 3
+        )
           throw Object.assign(
             new Error("Your 1 GB storage quota has been reached"),
             { status: 400 },
@@ -361,6 +373,77 @@ app.get("/api/documents/:id/download", async (req, res) => {
     doc.originalName || doc.name,
   );
 });
+async function documentAccess(req: Request) {
+  const doc = await prisma.document.findUnique({
+    where: { id: String(req.params.id) },
+    include: { project: true },
+  });
+  if (
+    !doc ||
+    (doc.project.ownerId !== req.user!.id && req.user!.role !== "ADMIN")
+  )
+    throw Object.assign(new Error("Document not found"), { status: 404 });
+  if (!doc.storageKey)
+    throw Object.assign(
+      new Error("External links open at their original location"),
+      { status: 400 },
+    );
+  return doc;
+}
+app.get("/api/documents/:id/preview/status", async (req, res) => {
+  const doc = await documentAccess(req);
+  res.setHeader("Cache-Control", "no-store");
+  res.json({
+    status: doc.kind === "PDF" ? "READY" : doc.previewStatus,
+    error: doc.previewError,
+    available: doc.kind === "PDF" || !!process.env.LIBREOFFICE_PATH,
+  });
+});
+app.post(
+  "/api/documents/:id/preview",
+  rateLimit({ windowMs: 60000, limit: 15 }),
+  async (req, res) => {
+    const doc = await documentAccess(req);
+    if (doc.kind === "PDF") return res.json({ status: "READY" });
+    if (!process.env.LIBREOFFICE_PATH)
+      return res.status(503).json({
+        error:
+          "PowerPoint and Word previews require the server preview converter to be configured.",
+      });
+    await prisma.document.updateMany({
+      where: { id: doc.id, previewStatus: { in: ["NONE", "FAILED"] } },
+      data: { previewStatus: "QUEUED", previewError: null },
+    });
+    res.status(202).json({ status: "QUEUED" });
+  },
+);
+app.get("/api/documents/:id/preview", async (req, res) => {
+  const doc = await documentAccess(req);
+  const key =
+    doc.kind === "PDF"
+      ? doc.storageKey
+      : doc.previewStatus === "READY"
+        ? doc.previewKey
+        : null;
+  if (!key)
+    return res.status(409).json({ error: "The preview is not ready yet" });
+  if (req.user!.role === "ADMIN")
+    await prisma.auditLog.create({
+      data: {
+        actorId: req.user!.id,
+        action: "VIEW_DOCUMENT",
+        resourceId: doc.id,
+      },
+    });
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", 'inline; filename="preview.pdf"');
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'none'; frame-ancestors 'self'; sandbox",
+  );
+  res.sendFile(path.join(uploadDir, key));
+});
 app.delete("/api/documents/:id", async (req, res) => {
   const doc = await prisma.document.findUnique({
     where: { id: String(req.params.id) },
@@ -368,9 +451,11 @@ app.delete("/api/documents/:id", async (req, res) => {
   });
   if (!doc || doc.project.ownerId !== req.user!.id)
     return res.status(404).json({ error: "Document not found" });
-  await prisma.document.delete({ where: { id: doc.id } });
-  if (doc.storageKey)
-    await unlink(path.join(uploadDir, doc.storageKey)).catch(() => {});
+  const deleted = await prisma.document.delete({ where: { id: doc.id } });
+  if (deleted.storageKey)
+    await unlink(path.join(uploadDir, deleted.storageKey)).catch(() => {});
+  if (deleted.previewKey)
+    await unlink(path.join(uploadDir, deleted.previewKey)).catch(() => {});
   res.json({ ok: true });
 });
 app.get("/api/admin/users", async (req, res) => {
@@ -432,3 +517,5 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 app.listen(Number(process.env.PORT || 4000), "127.0.0.1", () =>
   console.log("pptinit API listening on port " + (process.env.PORT || 4000)),
 );
+
+startPreviewWorker(prisma, uploadDir);

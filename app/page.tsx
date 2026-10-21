@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import SpotlightCard from "../components/react-bits/SpotlightCard";
+import DocumentViewer from "../components/DocumentViewer";
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -8,6 +9,7 @@ import {
   Check,
   ChevronRight,
   FileText,
+  Eye,
   Folder,
   FolderOpen,
   Grid2X2,
@@ -103,6 +105,7 @@ export default function Home() {
     [mode, setMode] = useState<"file" | "link">("file"),
     [file, setFile] = useState<File | null>(null),
     [notice, setNotice] = useState("");
+  const [viewing, setViewing] = useState<Doc | null>(null);
   const requestId = useRef(0);
   useEffect(() => {
     api("/auth/me")
@@ -393,6 +396,13 @@ export default function Home() {
     );
   return (
     <div className="shell">
+      {viewing && (
+        <DocumentViewer
+          document={viewing}
+          request={api}
+          onClose={() => setViewing(null)}
+        />
+      )}
       <aside className="sidebar">
         <a className="brand" href="/" aria-label="pptinit home">
           <img
@@ -650,6 +660,16 @@ export default function Home() {
                         {date(d.createdAt)}
                       </span>
                     </div>
+                    {d.kind !== "LINK" && (
+                      <button
+                        className="view-document"
+                        title="View document"
+                        onClick={() => setViewing(d)}
+                      >
+                        <Eye size={17} />
+                        <span>View</span>
+                      </button>
+                    )}
                     {d.kind === "LINK" ? (
                       <a
                         className="icon-button"
