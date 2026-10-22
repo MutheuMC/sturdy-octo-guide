@@ -3,8 +3,10 @@ import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { readFile, rm, access } from "node:fs/promises";
 import path from "node:path";
+import backendConfig from "../src/config/index.js";
+const { uploadDir } = backendConfig;
 const db = new PrismaClient(),
-  origin = "http://localhost:3000",
+  origin = process.env.APP_ORIGIN || "http://localhost:3000",
   ids = [],
   files = [];
 function client() {
@@ -134,9 +136,7 @@ try {
     );
     assert.equal((await owner("/documents/" + doc.id, "DELETE")).status, 200);
     for (const key of files)
-      await assert.rejects(
-        access(path.resolve(process.env.UPLOAD_DIR || "./uploads", key)),
-      );
+      await assert.rejects(access(path.join(uploadDir, key)));
     files.length = 0;
     console.log(
       "PASS: " +
@@ -196,7 +196,5 @@ try {
   await db.user.deleteMany({ where: { id: { in: ids } } });
   await db.$disconnect();
   for (const key of files)
-    await rm(path.resolve(process.env.UPLOAD_DIR || "./uploads", key), {
-      force: true,
-    });
+    await rm(path.join(uploadDir, key), { force: true });
 }

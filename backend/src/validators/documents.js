@@ -1,30 +1,35 @@
-import { z } from "zod";
-import yauzl from "yauzl";
-export const title = z
+const { z } = require("zod");
+const yauzl = require("yauzl");
+
+const title = z
   .string()
   .trim()
   .min(1)
   .max(120)
   .refine(
-    (v) => !/[<>\x00-\x1f]/.test(v),
+    (value) => !/[<>\x00-\x1f]/.test(value),
     "Use plain text without control characters",
   );
-export const linkSchema = z
+
+const linkSchema = z
   .string()
   .max(2048)
   .url()
-  .refine((v) => {
-    const u = new URL(v);
-    return u.protocol === "https:" && !u.username && !u.password;
+  .refine((value) => {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password;
   }, "Use an HTTPS URL without credentials");
-export function validateOffice(buffer: Buffer, kind: string): Promise<void> {
+
+function validateOffice(buffer, kind) {
   return new Promise((resolve, reject) => {
-    yauzl.fromBuffer(buffer, { lazyEntries: true }, (err, zip) => {
-      if (err || !zip) return reject(new Error("Invalid Office document"));
-      let count = 0,
-        total = 0,
-        content = false,
-        main = false;
+    yauzl.fromBuffer(buffer, { lazyEntries: true }, (error, zip) => {
+      if (error || !zip) return reject(new Error("Invalid Office document"));
+
+      let count = 0;
+      let total = 0;
+      let content = false;
+      let main = false;
+
       zip.on("error", reject);
       zip.on("entry", (entry) => {
         count++;
@@ -45,8 +50,9 @@ export function validateOffice(buffer: Buffer, kind: string): Promise<void> {
         if (
           entry.fileName ===
           (kind === "PPTX" ? "ppt/presentation.xml" : "word/document.xml")
-        )
+        ) {
           main = true;
+        }
         zip.readEntry();
       });
       zip.on("end", () =>
@@ -58,3 +64,5 @@ export function validateOffice(buffer: Buffer, kind: string): Promise<void> {
     });
   });
 }
+
+module.exports = { linkSchema, title, validateOffice };

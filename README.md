@@ -1,20 +1,55 @@
 # pptinit
 
-A private document workspace built with Next.js, Express, Prisma, and PostgreSQL. Users create projects and add named PPTX, PDF, DOCX files or HTTPS links. Administrators browse users and their projects. There are no modules.
+A private document workspace with an independently installed Next.js frontend and plain-JavaScript Express backend. Users create projects and add named PPTX, PDF, DOCX files or HTTPS links. Administrators browse users and their projects.
+
+## Project structure
+
+```text
+frontend/                 Next.js App Router application (TypeScript)
+  package.json            Frontend-only dependencies and commands
+  package-lock.json       Frontend dependency lockfile
+  node_modules/           Frontend dependencies
+  app/                    Pages, layout, and global styles
+  components/             React components
+  public/                 Static frontend assets
+backend/                  Express API (JavaScript only)
+  package.json            Backend-only dependencies and commands
+  package-lock.json       Backend dependency lockfile
+  node_modules/           Backend dependencies
+  .env                    Backend runtime configuration (not committed)
+  src/controllers/        HTTP request and response handlers
+  src/routes/             API route declarations
+  src/middleware/         Authentication, authorization, limits, and errors
+  src/services/           Authentication, documents, access, and previews
+  src/validators/         Request and document validation
+  prisma/                 Schema, migrations, and administrator seed
+  tests/                  Security and integration tests
+```
+
+The browser still calls `/api`. `frontend/next.config.ts` proxies those requests to the loopback-only backend on port 4000, preserving same-origin cookies and request protection.
 
 ## Local setup
 
 Requires Node.js 22+ and PostgreSQL (or Docker).
 
-1. `npm install`
-2. Copy `.env.example` to `.env`. Set a random JWT secret with at least 32 characters. For example, generate one with `openssl rand -hex 32`.
-3. `docker compose up -d db` (or configure DATABASE_URL for your PostgreSQL server).
-4. `npm run db:migrate`
-5. Set ADMIN_EMAIL and ADMIN_PASSWORD, then `npm run db:seed` to create the admin account. Existing accounts are promoted without changing their password.
-6. `npm run dev`
-7. Open http://localhost:3000.
+Set up the backend:
 
-`npm test` runs security validation tests. With the local server running, `npm run test:integration` checks authentication, upload handling, access isolation, and admin permissions against the configured database. It creates and removes its own test users. `npm run build` checks frontend and backend compilation. `npm start` runs the compiled applications. The start script sets NODE_ENV=production and requires the configured scanner.
+1. `cd backend`
+2. `npm install`
+3. Copy `.env.example` to `.env`. Set a random JWT secret with at least 32 characters.
+4. Start PostgreSQL and configure `DATABASE_URL` in `backend/.env`.
+5. `npm run db:migrate`
+6. Set `ADMIN_EMAIL` and `ADMIN_PASSWORD`, then run `npm run db:seed`.
+7. `npm run dev`
+
+In a second terminal, set up the frontend:
+
+1. `cd frontend`
+2. `npm install`
+3. `npm run dev`
+4. Open http://localhost:3000.
+
+Run backend security tests with `npm test` from `backend`. With both applications running, `npm run test:integration` from `backend` checks authentication, upload handling, access isolation, and admin permissions. Build each application independently with `npm run build` in its own directory.
 
 ## Security and storage
 
@@ -51,7 +86,7 @@ Click **View** beside an uploaded file. PDFs open directly; PPTX and DOCX files 
 
 Run `npm run db:migrate` after updating the app. Install LibreOffice Impress and Writer, then set `LIBREOFFICE_PATH` to its absolute executable path. Restart the API after environment changes. Without this setting, PDF viewing still works and Office previews display a configuration message. Conversion uses the [LibreOffice headless PDF export](https://help.libreoffice.org/latest/en-US/text/shared/guide/pdf_params.html).
 
-For production Office previews, install Linux bubblewrap and set `PREVIEW_SANDBOX_PATH` to the absolute path of `server/preview-sandbox.sh`. It isolates the converter from the network and application filesystem, mounts only system runtime resources and the current temporary job, drops capabilities, and applies CPU/file limits. The host must permit unprivileged user namespaces. A non-system LibreOffice runtime can be mounted read-only with `LIBREOFFICE_RUNTIME_DIR`. Production refuses to enable Office conversion without the wrapper. Keep LibreOffice and ClamAV current; install fonts needed by your documents in the converter runtime.
+For production Office previews, install Linux bubblewrap and set `PREVIEW_SANDBOX_PATH` to the absolute path of `backend/scripts/preview-sandbox.sh`. It isolates the converter from the network and application filesystem, mounts only system runtime resources and the current temporary job, drops capabilities, and applies CPU/file limits. The host must permit unprivileged user namespaces. A non-system LibreOffice runtime can be mounted read-only with `LIBREOFFICE_RUNTIME_DIR`. Production refuses to enable Office conversion without the wrapper. Keep LibreOffice and ClamAV current; install fonts needed by your documents in the converter runtime.
 
 The single-process worker persists QUEUED/PROCESSING/READY/FAILED states in PostgreSQL, processes one job at a time, and recovers interrupted work on restart. Use only one API/worker instance with this implementation; move jobs to a dedicated queue before scaling horizontally. Each conversion has a fresh profile with macro execution disabled, a 90-second timeout, a 50 MB output limit, and temporary directory cleanup. Preview files count toward the user's 1 GB quota and are removed when the original is deleted. Previews use the same owner/admin permissions as downloads; admin views are audited. Generated preview PDFs remain private and are fetched into a temporary browser blob URL that is revoked when the viewer closes.
 

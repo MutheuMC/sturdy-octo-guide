@@ -1,0 +1,32 @@
+{
+  "name": "pptinit-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "build": "prisma generate --schema prisma/schema.prisma && node scripts/check-syntax.js",
+    "start": "node src/production.js",
+    "test": "node --test tests/*.test.js",
+    "test:integration": "node --env-file=.env tests/integration.mjs",
+    "test:previews": "node --env-file=.env tests/preview-integration.mjs",
+    "db:push": "prisma db push --schema prisma/schema.prisma",
+    "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
+    "db:seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.0",
+    "argon2": "^0.44.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.1.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "yauzl": "^3.2.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.0"
+  }
+}

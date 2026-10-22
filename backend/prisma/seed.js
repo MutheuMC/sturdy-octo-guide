@@ -1,12 +1,17 @@
-import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
-import argon2 from "argon2";
+require("../src/config/env");
+
+const { PrismaClient } = require("@prisma/client");
+const argon2 = require("argon2");
+
 const prisma = new PrismaClient();
+
 async function main() {
-  const email = process.env.ADMIN_EMAIL?.toLowerCase(),
-    password = process.env.ADMIN_PASSWORD;
-  if (!email || !password || password.length < 8)
-    throw Error("Set ADMIN_EMAIL and ADMIN_PASSWORD (8+ characters)");
+  const email = process.env.ADMIN_EMAIL?.toLowerCase();
+  const password = process.env.ADMIN_PASSWORD;
+  if (!email || !password || password.length < 8) {
+    throw new Error("Set ADMIN_EMAIL and ADMIN_PASSWORD (8+ characters)");
+  }
+
   await prisma.user.upsert({
     where: { email },
     create: {
@@ -19,4 +24,5 @@ async function main() {
   });
   console.log("Admin account ready");
 }
+
 main().finally(() => prisma.$disconnect());

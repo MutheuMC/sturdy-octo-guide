@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 const db = new PrismaClient();
-const origin = "http://localhost:3000";
+const origin = process.env.APP_ORIGIN || "http://localhost:3000";
 const tag = randomUUID().slice(0, 8),
   ids = [];
 function client() {

@@ -1,29 +1,38 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import { title, linkSchema, validateOffice } from "../server/security";
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const {
+  linkSchema,
+  title,
+  validateOffice,
+} = require("../src/validators/documents");
+
 test("document links reject executable schemes and embedded credentials", () => {
   for (const value of [
     "javascript:alert(1)",
     "data:text/html,hello",
     "http://example.com",
     "https://user:pass@example.com",
-  ])
+  ]) {
     assert.equal(linkSchema.safeParse(value).success, false);
+  }
   assert.equal(
     linkSchema.parse("https://example.com/slides"),
     "https://example.com/slides",
   );
 });
+
 test("titles reject HTML and control characters while preserving normal names", () => {
   for (const value of [
     "",
     "<script>alert(1)</script>",
     "hello\u0000world",
     "a".repeat(121),
-  ])
+  ]) {
     assert.equal(title.safeParse(value).success, false);
+  }
   assert.equal(title.parse("  Quarterly strategy  "), "Quarterly strategy");
 });
+
 test("renaming arbitrary bytes to an Office extension does not pass validation", async () => {
   await assert.rejects(validateOffice(Buffer.from("not a powerpoint"), "PPTX"));
   await assert.rejects(validateOffice(Buffer.from("%PDF-1.4"), "DOCX"));
