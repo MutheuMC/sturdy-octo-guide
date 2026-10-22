@@ -1,0 +1,19 @@
+<!-- Place the matching WinSW executable beside this file as pptinit-backend.exe.
+     Adjust C:\pptinit and D:\pptinit-data for your installation. -->
+<service>
+  <id>pptinit-backend</id>
+  <name>pptinit API</name>
+  <description>Private document API and single preview worker</description>
+  <executable>C:\Program Files\nodejs\node.exe</executable>
+  <arguments>"C:\pptinit\backend\src\production.js"</arguments>
+  <workingdirectory>C:\pptinit\backend</workingdirectory>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <onfailure action="restart" delay="10 sec" />
+  <stoptimeout>120 sec</stoptimeout>
+  <logpath>D:\pptinit-data\logs\backend</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+</service>

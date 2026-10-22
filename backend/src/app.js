@@ -1,6 +1,7 @@
 const cookieParser = require("cookie-parser");
 const express = require("express");
 const helmet = require("helmet");
+const { trustProxy } = require("./config");
 const { authenticate } = require("./middleware/authenticate");
 const { errorHandler } = require("./middleware/error-handler");
 const { protectOrigin } = require("./middleware/origin-protection");
@@ -16,6 +17,7 @@ const { projectsRouter } = require("./routes/projects.routes");
 const app = express();
 
 app.disable("x-powered-by");
+app.set("trust proxy", trustProxy);
 app.use(helmet());
 app.use(express.json({ limit: "16kb" }));
 app.use(cookieParser());

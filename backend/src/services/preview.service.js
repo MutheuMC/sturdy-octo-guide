@@ -13,6 +13,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { promisify } = require("node:util");
+const { previewCommand } = require("../lib/preview-runtime");
 
 const runFile = promisify(execFile);
 const MAX_PREVIEW = 50 * 1024 * 1024;
@@ -28,36 +29,23 @@ async function convertToPdf(input, work, executable) {
     `<?xml version="1.0"?><oor:items xmlns:oor="http://openoffice.org/2001/registry"><item oor:path="/org.openoffice.Office.Common/Security/Scripting"><prop oor:name="MacroSecurityLevel" oor:op="fuse"><value>3</value></prop></item><item oor:path="/org.openoffice.Office.Common/Load"><prop oor:name="UpdateDocMode" oor:op="fuse"><value>0</value></prop></item></oor:items>`,
   );
 
-  await runFile(
-    process.env.PREVIEW_SANDBOX_PATH || executable,
-    [
-      ...(process.env.PREVIEW_SANDBOX_PATH ? [executable] : []),
-      `-env:UserInstallation=${pathToFileURL(profile).href}`,
-      "--headless",
-      "--nologo",
-      "--nodefault",
-      "--norestore",
-      "--convert-to",
-      "pdf",
-      "--outdir",
-      output,
-      input,
-    ],
-    {
-      cwd: work,
-      timeout: 90000,
-      maxBuffer: 1024 * 1024,
-      killSignal: "SIGKILL",
-      env: {
-        PATH: process.env.PATH,
-        HOME: work,
-        TMPDIR: work,
-        LANG: "en_US.UTF-8",
-        SAL_USE_VCLPLUGIN: "svp",
-        LIBREOFFICE_RUNTIME_DIR: process.env.LIBREOFFICE_RUNTIME_DIR,
-      },
-    },
-  );
+  const args = [
+    `-env:UserInstallation=${pathToFileURL(profile).href}`,
+    "--headless",
+    "--nologo",
+    "--nodefault",
+    "--norestore",
+    "--convert-to",
+    "pdf",
+    "--outdir",
+    output,
+    input,
+  ];
+  if (process.platform === "win32") {
+    await writeFile(path.join(work, "preview-job.json"), JSON.stringify({ executable, args, work }), { mode: 0o600 });
+  }
+  const command = previewCommand(executable, args, work);
+  await runFile(command.executable, command.args, command.options);
 
   const pdf = path.join(output, path.parse(input).name + ".pdf");
   const info = await stat(pdf);
@@ -79,7 +67,7 @@ async function convertToPdf(input, work, executable) {
   return { pdf, size: info.size };
 }
 
-function startPreviewWorker(database, uploadDir) {
+function startPreviewWorker(database, uploadDir, tempDir = os.tmpdir()) {
   let running = false;
 
   async function tick() {
@@ -110,7 +98,8 @@ function startPreviewWorker(database, uploadDir) {
 
       id = document.id;
       sourceKey = document.storageKey;
-      work = await mkdtemp(path.join(os.tmpdir(), "pptinit-preview-"));
+      await mkdir(tempDir, { recursive: true, mode: 0o700 });
+      work = await mkdtemp(path.join(tempDir, "pptinit-preview-"));
       const input = path.join(
         work,
         "document" + (document.kind === "PPTX" ? ".pptx" : ".docx"),
