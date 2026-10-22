@@ -28,13 +28,17 @@ async function signup(req, res) {
 }
 
 async function login(req, res) {
-  const input = credentials.parse(req.body);
+  const parsed = credentials.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(401).json({ error: "Invalid email or password" });
+  }
+  const input = parsed.data;
   const user = await prisma.user.findUnique({
     where: { email: input.email },
   });
 
   if (!user || !(await argon2.verify(user.passwordHash, input.password))) {
-    return res.status(401).json({ error: "Email or password is incorrect" });
+    return res.status(401).json({ error: "Invalid email or password" });
   }
 
   await issueSession(res, user);

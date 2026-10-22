@@ -342,7 +342,7 @@ export default function Home() {
                 ? "Create your account to get organized."
                 : "Log in to pick up where you left off."}
             </p>
-            <form onSubmit={auth}>
+            <form onSubmit={auth} noValidate={!signup} aria-busy={busy}>
               {signup && (
                 <label>
                   Full name
@@ -363,6 +363,8 @@ export default function Home() {
                   required
                   autoComplete="email"
                   placeholder="you@example.com"
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? "auth-error" : undefined}
                 />
               </label>
               <label>
@@ -370,15 +372,17 @@ export default function Home() {
                 <input
                   name="password"
                   type="password"
-                  minLength={8}
+                  minLength={signup ? 8 : undefined}
                   maxLength={128}
                   required
                   autoComplete={signup ? "new-password" : "current-password"}
-                  placeholder="At least 8 characters"
+                  placeholder={signup ? "At least 8 characters" : "Enter your password"}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? "auth-error" : undefined}
                 />
               </label>
               {error && (
-                <div className="error" role="alert">
+                <div className="error" id="auth-error" role="alert">
                   {error}
                 </div>
               )}

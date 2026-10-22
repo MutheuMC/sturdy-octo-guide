@@ -54,6 +54,21 @@ async function register(c, label) {
 }
 try {
   const alice = await register(a, "Alice");
+  const invalidLogin = client();
+  for (const [email, password] of [
+    [alice.email, "Wrong-password-123!"],
+    [`missing-${tag}@example.test`, "Wrong-password-123!"],
+    [alice.email, "short"],
+    ["not-an-email", "Wrong-password-123!"],
+  ]) {
+    const rejected = await invalidLogin.request("/auth/login", {
+      method: "POST",
+      body: { email, password },
+    });
+    assert.equal(rejected.status, 401);
+    assert.deepEqual(await rejected.json(), { error: "Invalid email or password" });
+    assert.equal(invalidLogin.jar.size, 0);
+  }
   await register(b, "Bob");
   const manager = await register(admin, "Admin");
   await db.user.update({ where: { id: manager.id }, data: { role: "ADMIN" } });
