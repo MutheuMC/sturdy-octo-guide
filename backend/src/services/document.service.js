@@ -51,7 +51,6 @@ async function storeValidatedFile(file) {
         await runFile(process.env.CLAMSCAN_PATH, ["--no-summary", storedPath], {
           timeout: 60000,
           maxBuffer: 4096,
-          windowsHide: true,
         });
       } catch {
         throw httpError(

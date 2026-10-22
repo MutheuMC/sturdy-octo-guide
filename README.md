@@ -69,7 +69,7 @@ After updating the app, run `npm run db:migrate` and `npm run build` in `backend
 
 ## Deployment notes and remaining work
 
-For native Windows Server hosting, follow [the Windows deployment guide](deployment/windows/README.md). It includes Windows environment templates, IIS reverse proxy rules, WinSW service definitions, a deployment check and real Word/PowerPoint conversion smoke tests. Windows previews automatically use the bundled AppContainer/Job Object launcher; Linux deployments keep using bubblewrap.
+Host the app on Linux. Office previews use LibreOffice inside the included bubblewrap sandbox. Start from `backend/.env.example` and `frontend/.env.example`, and configure private persistent storage before deployment. `npm run check:deployment` in `backend` checks database connectivity, writable storage and configured converter/scanner paths; `npm run test:previews` verifies actual document previews with the app running.
 
 Run Next.js and Express behind HTTPS on the same origin. Express binds to loopback on port 4000; Next.js proxies /api. The supplied Next.js rewrite assumes PORT=4000. Configure APP_ORIGIN to the exact public origin. Configure trusted proxy handling deliberately if adding a reverse proxy, so rate limits use the correct client IP. Do not expose the API directly.
 

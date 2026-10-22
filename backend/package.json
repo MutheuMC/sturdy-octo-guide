@@ -10,7 +10,6 @@
     "test:integration": "node --env-file=.env tests/integration.mjs",
     "test:previews": "node --env-file=.env tests/preview-integration.mjs",
     "test:updates": "node --env-file=.env tests/document-updates.integration.mjs",
-    "test:windows": "node --env-file=.env tests/windows-preview.integration.mjs",
     "check:deployment": "node scripts/check-deployment.js",
     "db:push": "prisma db push --schema prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",

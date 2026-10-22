@@ -14,18 +14,10 @@ async function check() {
   }
   if (process.env.LIBREOFFICE_PATH) {
     await access(process.env.LIBREOFFICE_PATH);
-    if (process.platform === "win32") {
-      const powershell = path.join(process.env.SystemRoot, "System32/WindowsPowerShell/v1.0/powershell.exe");
-      await runFile(powershell, ["-NoProfile", "-NonInteractive", "-File",
-        path.resolve(__dirname, "windows-preview.ps1"), "-CheckOnly"],
-      { timeout: 30000, windowsHide: true });
-      console.log("Windows AppContainer launcher compiles; run npm run test:windows for actual conversion.");
-    } else {
-      if (process.env.PREVIEW_SANDBOX_PATH) await access(process.env.PREVIEW_SANDBOX_PATH);
-    }
+    if (process.env.PREVIEW_SANDBOX_PATH) await access(process.env.PREVIEW_SANDBOX_PATH);
   }
   if (process.env.CLAMSCAN_PATH) {
-    await runFile(process.env.CLAMSCAN_PATH, ["--version"], { timeout: 15000, windowsHide: true });
+    await runFile(process.env.CLAMSCAN_PATH, ["--version"], { timeout: 15000 });
   }
   const { prisma } = require("../src/lib/prisma");
   try { await prisma.$queryRaw`SELECT 1`; }

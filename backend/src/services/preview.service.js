@@ -41,9 +41,6 @@ async function convertToPdf(input, work, executable) {
     output,
     input,
   ];
-  if (process.platform === "win32") {
-    await writeFile(path.join(work, "preview-job.json"), JSON.stringify({ executable, args, work }), { mode: 0o600 });
-  }
   const command = previewCommand(executable, args, work);
   await runFile(command.executable, command.args, command.options);
 
