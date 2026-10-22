@@ -1,4 +1,5 @@
 const path = require("node:path");
+const { z } = require("zod");
 const { uploadDir } = require("../config");
 const { prisma } = require("../lib/prisma");
 const { httpError } = require("../lib/http-error");
@@ -9,8 +10,27 @@ const {
 const {
   createUploadedDocument,
   deleteOwnedDocument,
+  updateOwnedDocument,
 } = require("../services/document.service");
-const { title } = require("../validators/documents");
+const { linkSchema, title } = require("../validators/documents");
+
+async function updateDocument(req, res) {
+  const isLink = req.document.kind === "LINK";
+  const schema = isLink
+    ? z.object({ name: title, url: linkSchema }).strict()
+    : z.object({ name: title }).strict();
+  const input = schema.parse(req.body);
+  if (isLink && req.file) {
+    throw httpError("Links cannot contain uploaded files", 400);
+  }
+  const document = await updateOwnedDocument({
+    id: req.document.id,
+    ownerId: req.user.id,
+    ...input,
+    file: req.file,
+  });
+  res.json({ document });
+}
 
 async function uploadFile(req, res) {
   const name = title.parse(req.body.name);
@@ -79,7 +99,11 @@ async function requestPreview(req, res) {
   }
 
   await prisma.document.updateMany({
-    where: { id: document.id, previewStatus: { in: ["NONE", "FAILED"] } },
+    where: {
+      id: document.id,
+      storageKey: document.storageKey,
+      previewStatus: { in: ["NONE", "FAILED"] },
+    },
     data: { previewStatus: "QUEUED", previewError: null },
   });
   res.status(202).json({ status: "QUEUED" });
@@ -125,6 +149,7 @@ async function deleteDocument(req, res) {
 }
 
 module.exports = {
+  updateDocument,
   deleteDocument,
   downloadDocument,
   getPreview,

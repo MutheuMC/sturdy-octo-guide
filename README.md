@@ -53,6 +53,12 @@ Run backend security tests with `npm test` from `backend`. With both application
 
 ## Security and storage
 
+Owners can use the pencil button beside a document or link to rename it, update its HTTPS URL, or upload a replacement file. The original upload date stays visible, and edits show a **Last updated** date and time in the viewer's local timezone. Existing items have no edit timestamp until they are changed; generating a preview does not count as an edit.
+
+File replacements are validated and scanned using the same rules as new uploads. After the replacement is saved, the previous file and its PDF preview are deleted. Version history is not retained. A rejected replacement leaves the current file available. Replacement files count against the 1 GB quota after crediting the old file and preview.
+
+After updating the app, run `npm run db:migrate` and `npm run build` in `backend` to add the timestamp column and regenerate Prisma Client. Run `npm run test:updates` in `backend` against the local database to verify editing, access controls, replacement cleanup, quota handling, and replacement during preview conversion. The test starts its own API and cleans up its test accounts and files.
+
 - Argon2id password hashes, 15-minute JWTs in HttpOnly cookies, rotating seven-day refresh sessions. Every authenticated request verifies the backing session; logout invalidates it immediately.
 - Same-origin mutation protection, strict schemas, Helmet headers, rate limiting, and owner/admin checks. Admin document access is read-only; admin downloads are audited.
 - File uploads are limited to 50 MB each and 1 GB per user. A PostgreSQL row lock serializes concurrent quota checks. Random private filenames prevent traversal and public access; downloads require authorization and use attachment disposition.

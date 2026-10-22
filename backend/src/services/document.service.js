@@ -37,7 +37,7 @@ async function validateUpload(file) {
   return { extension, kind };
 }
 
-async function createUploadedDocument({ file, name, ownerId, projectId }) {
+async function storeValidatedFile(file) {
   const { extension, kind } = await validateUpload(file);
   const storageKey = randomUUID() + extension;
   const storedPath = path.join(uploadDir, storageKey);
@@ -60,6 +60,33 @@ async function createUploadedDocument({ file, name, ownerId, projectId }) {
       }
     }
 
+    return {
+      storageKey,
+      kind,
+      originalName: path.basename(file.originalname),
+      size: file.size,
+    };
+  } catch (error) {
+    await unlink(storedPath);
+    throw error;
+  }
+}
+
+async function removeStoredFiles(document) {
+  for (const key of [document.storageKey, document.previewKey]) {
+    if (key) {
+      await unlink(path.join(uploadDir, key)).catch((error) => {
+        if (error.code !== "ENOENT") {
+          console.error("Stored file cleanup failed", error.code);
+        }
+      });
+    }
+  }
+}
+
+async function createUploadedDocument({ file, name, ownerId, projectId }) {
+  const stored = await storeValidatedFile(file);
+  try {
     return await prisma.$transaction(async (transaction) => {
       await transaction.$queryRaw`SELECT id FROM "User" WHERE id = ${ownerId} FOR UPDATE`;
       const usage = await transaction.document.aggregate({
@@ -79,39 +106,92 @@ async function createUploadedDocument({ file, name, ownerId, projectId }) {
       return transaction.document.create({
         data: {
           name,
-          kind,
-          storageKey,
-          originalName: path.basename(file.originalname),
-          size: file.size,
+          ...stored,
           projectId,
         },
       });
     });
   } catch (error) {
-    await unlink(storedPath);
+    await removeStoredFiles(stored);
     throw error;
   }
 }
 
+async function updateOwnedDocument({ id, ownerId, name, url, file }) {
+  const stored = file ? await storeValidatedFile(file) : null;
+  let previous;
+  let updated;
+  try {
+    updated = await prisma.$transaction(async (transaction) => {
+      // Serialize uploads, replacements, deletion, and preview publication for this owner.
+      await transaction.$queryRaw`SELECT id FROM "User" WHERE id = ${ownerId} FOR UPDATE`;
+      previous = await transaction.document.findFirst({
+        where: { id, project: { ownerId } },
+      });
+      if (!previous) throw httpError("Document not found", 404);
+      if (
+        (previous.kind === "LINK") !== (url !== undefined) ||
+        (previous.kind === "LINK" && stored)
+      ) {
+        throw httpError("Files and links must keep their document type", 400);
+      }
+      if (stored) {
+        const usage = await transaction.document.aggregate({
+          where: { project: { ownerId } },
+          _sum: { size: true, previewSize: true },
+        });
+        if (
+          (usage._sum.size || 0) + (usage._sum.previewSize || 0) -
+            previous.size - previous.previewSize + stored.size > 1024 ** 3
+        ) {
+          throw httpError("Your 1 GB storage quota has been reached", 400);
+        }
+      }
+      // Saving unchanged metadata should not invent a new edit date.
+      if (
+        !stored && name === previous.name &&
+        (url === undefined || url === previous.url)
+      ) return previous;
+      return transaction.document.update({
+        where: { id },
+        data: {
+          name,
+          ...(url !== undefined ? { url } : {}),
+          ...(stored ? {
+            ...stored,
+            previewStatus: "NONE",
+            previewKey: null,
+            previewSize: 0,
+            previewError: null,
+          } : {}),
+          updatedAt: new Date(),
+        },
+      });
+    });
+  } catch (error) {
+    if (stored) await removeStoredFiles(stored);
+    throw error;
+  }
+  // Only remove the previous content after the replacement is committed.
+  if (stored) await removeStoredFiles(previous);
+  return updated;
+}
+
 async function deleteOwnedDocument(userId, id) {
-  const document = await prisma.document.findUnique({
-    where: { id },
-    include: { project: true },
+  const deleted = await prisma.$transaction(async (transaction) => {
+    await transaction.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+    const document = await transaction.document.findFirst({
+      where: { id, project: { ownerId: userId } },
+    });
+    if (!document) throw httpError("Document not found", 404);
+    return transaction.document.delete({ where: { id } });
   });
-
-  if (!document || document.project.ownerId !== userId) {
-    throw httpError("Document not found", 404);
-  }
-
-  const deleted = await prisma.document.delete({ where: { id: document.id } });
-  if (deleted.storageKey) {
-    await unlink(path.join(uploadDir, deleted.storageKey)).catch(() => {});
-  }
-  if (deleted.previewKey) {
-    await unlink(path.join(uploadDir, deleted.previewKey)).catch(() => {});
-  }
-
+  await removeStoredFiles(deleted);
   return deleted;
 }
 
-module.exports = { createUploadedDocument, deleteOwnedDocument };
+module.exports = {
+  createUploadedDocument,
+  deleteOwnedDocument,
+  updateOwnedDocument,
+};

@@ -49,6 +49,7 @@ async function getProject(req, res) {
       url: true,
       size: true,
       createdAt: true,
+      updatedAt: true,
       originalName: true,
     },
   });

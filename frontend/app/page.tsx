@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import SpotlightCard from "../components/react-bits/SpotlightCard";
 import DocumentViewer from "../components/DocumentViewer";
+import EditDocumentDialog from "../components/EditDocumentDialog";
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -18,6 +19,7 @@ import {
   LoaderCircle,
   LogOut,
   Plus,
+  Pencil,
   Search,
   ShieldCheck,
   Trash2,
@@ -46,6 +48,7 @@ type Doc = {
   url?: string;
   size: number;
   createdAt: string;
+  updatedAt?: string | null;
   originalName?: string;
 };
 let refreshPromise: Promise<Response> | null = null;
@@ -84,6 +87,16 @@ const date = (s: string) =>
     day: "numeric",
     year: "numeric",
   });
+const dateTime = (s: string) =>
+  new Date(s).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
+  });
 export default function Home() {
   const [user, setUser] = useState<User | null>(null),
     [boot, setBoot] = useState(true),
@@ -106,6 +119,7 @@ export default function Home() {
     [file, setFile] = useState<File | null>(null),
     [notice, setNotice] = useState("");
   const [viewing, setViewing] = useState<Doc | null>(null);
+  const [editing, setEditing] = useState<Doc | null>(null);
   const requestId = useRef(0);
   useEffect(() => {
     api("/auth/me")
@@ -657,8 +671,14 @@ export default function Home() {
                           ? "External link"
                           : d.kind + " · " + bytes(d.size)}
                         <i>·</i>
-                        {date(d.createdAt)}
+                        Uploaded {date(d.createdAt)}
                       </span>
+                      {d.updatedAt && (
+                        <span className="document-updated">
+                          Last updated{" "}
+                          <time dateTime={d.updatedAt}>{dateTime(d.updatedAt)}</time>
+                        </span>
+                      )}
                     </div>
                     {d.kind !== "LINK" && (
                       <button
@@ -696,6 +716,16 @@ export default function Home() {
                         }}
                       >
                         <ArrowDownToLine size={18} />
+                      </button>
+                    )}
+                    {!readOnly && (
+                      <button
+                        className="icon-button"
+                        title={d.kind === "LINK" ? "Edit link" : "Edit document"}
+                        aria-label={"Edit " + d.name}
+                        onClick={() => setEditing(d)}
+                      >
+                        <Pencil size={17} />
                       </button>
                     )}
                     {!readOnly && (
@@ -846,6 +876,19 @@ export default function Home() {
           </footer>
         </main>
       </div>
+      {editing && (
+        <EditDocumentDialog
+          key={editing.id}
+          document={editing}
+          request={api}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            setNotice("Changes saved");
+            void load();
+          }}
+        />
+      )}
       {notice && (
         <div className="toast" role="status">
           <Check size={17} />

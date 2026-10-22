@@ -89,6 +89,7 @@ function startPreviewWorker(database, uploadDir) {
     let work;
     let outputKey;
     let id;
+    let sourceKey;
 
     try {
       const document = await database.document.findFirst({
@@ -98,12 +99,17 @@ function startPreviewWorker(database, uploadDir) {
       if (!document?.storageKey) return;
 
       const claim = await database.document.updateMany({
-        where: { id: document.id, previewStatus: "QUEUED" },
+        where: {
+          id: document.id,
+          storageKey: document.storageKey,
+          previewStatus: "QUEUED",
+        },
         data: { previewStatus: "PROCESSING", previewError: null },
       });
       if (!claim.count) return;
 
       id = document.id;
+      sourceKey = document.storageKey;
       work = await mkdtemp(path.join(os.tmpdir(), "pptinit-preview-"));
       const input = path.join(
         work,
@@ -136,8 +142,13 @@ function startPreviewWorker(database, uploadDir) {
         ) {
           throw new Error("Storage quota exceeded");
         }
-        await transaction.document.update({
-          where: { id: document.id },
+        const published = await transaction.document.updateMany({
+          // A conversion of replaced content must never publish over the new file.
+          where: {
+            id: document.id,
+            storageKey: sourceKey,
+            previewStatus: "PROCESSING",
+          },
           data: {
             previewKey: outputKey,
             previewSize: converted.size,
@@ -145,6 +156,9 @@ function startPreviewWorker(database, uploadDir) {
             previewError: null,
           },
         });
+        if (!published.count) {
+          throw new Error("Preview source was replaced or deleted");
+        }
       });
       outputKey = undefined;
     } catch (error) {
@@ -152,7 +166,7 @@ function startPreviewWorker(database, uploadDir) {
       if (id) {
         await database.document
           .updateMany({
-            where: { id },
+            where: { id, storageKey: sourceKey, previewStatus: "PROCESSING" },
             data: {
               previewStatus: "FAILED",
               previewError:

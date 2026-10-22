@@ -635,6 +635,34 @@ h1 {
   font-style: normal;
   margin: 0 8px;
 }
+.doc-info .document-updated {
+  color: #555887;
+  line-height: 1.5;
+}
+.edit-document-dialog {
+  margin: auto;
+  border: 0;
+  max-width: calc(100vw - 32px);
+  color: inherit;
+}
+.edit-document-dialog::backdrop {
+  background: #191a2b59;
+  backdrop-filter: blur(5px);
+}
+.edit-document-dialog fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.edit-document-dialog .replacement-note {
+  margin-top: 14px;
+  font-size: 12px;
+}
+.edit-document-dialog .current-document {
+  overflow-wrap: anywhere;
+  margin-bottom: 12px;
+}
 .icon-button {
   padding: 8px;
   color: #8284a2;
